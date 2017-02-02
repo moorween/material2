@@ -22,3 +22,6 @@ export const TAB = 9;
 export const ESCAPE = 27;
 export const BACKSPACE = 8;
 export const DELETE = 46;
+
+export const INPUT_KEY_RANGE_START = 65;
+export const INPUT_KEY_RANGE_END = 90;

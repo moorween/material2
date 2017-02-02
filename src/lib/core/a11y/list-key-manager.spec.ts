@@ -1,6 +1,6 @@
 import {QueryList} from '@angular/core';
 import {fakeAsync, tick} from '@angular/core/testing';
-import {FocusKeyManager} from './focus-key-manager';
+import {FocusKeyManager, FOCUS_KEY_MANAGER_DEBOUNCE_INTERVAL} from './focus-key-manager';
 import {DOWN_ARROW, UP_ARROW, TAB, HOME, END} from '../keyboard/keycodes';
 import {ListKeyManager} from './list-key-manager';
 import {ActiveDescendantKeyManager} from './activedescendant-key-manager';
@@ -8,6 +8,12 @@ import {ActiveDescendantKeyManager} from './activedescendant-key-manager';
 class FakeFocusable {
   disabled = false;
   focus() {}
+
+  getFocusableLabel() {
+    return this._label;
+  }
+
+  constructor(private _label?: string) { }
 }
 
 class FakeHighlightable {
@@ -22,6 +28,7 @@ class FakeQueryList<T> extends QueryList<T> {
   toArray() {
     return this.items;
   }
+  get first() { return this.items[0]; }
 }
 
 export class FakeEvent {
@@ -405,9 +412,9 @@ describe('Key managers', () => {
 
     beforeEach(() => {
       itemList.items = [
-        new FakeFocusable(),
-        new FakeFocusable(),
-        new FakeFocusable()
+        new FakeFocusable('one'),
+        new FakeFocusable('two'),
+        new FakeFocusable('three')
       ];
 
       keyManager = new FocusKeyManager(itemList);
@@ -420,40 +427,81 @@ describe('Key managers', () => {
       spyOn(itemList.items[2], 'focus');
     });
 
-      it('should focus subsequent items when down arrow is pressed', () => {
-        keyManager.onKeydown(DOWN_ARROW_EVENT);
+    it('should focus subsequent items when down arrow is pressed', () => {
+      keyManager.onKeydown(DOWN_ARROW_EVENT);
 
-        expect(itemList.items[0].focus).not.toHaveBeenCalled();
-        expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
-        expect(itemList.items[2].focus).not.toHaveBeenCalled();
+      expect(itemList.items[0].focus).not.toHaveBeenCalled();
+      expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
+      expect(itemList.items[2].focus).not.toHaveBeenCalled();
 
-        keyManager.onKeydown(DOWN_ARROW_EVENT);
-        expect(itemList.items[0].focus).not.toHaveBeenCalled();
-        expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
-        expect(itemList.items[2].focus).toHaveBeenCalledTimes(1);
-      });
+      keyManager.onKeydown(DOWN_ARROW_EVENT);
+      expect(itemList.items[0].focus).not.toHaveBeenCalled();
+      expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
+      expect(itemList.items[2].focus).toHaveBeenCalledTimes(1);
+    });
 
-      it('should focus previous items when up arrow is pressed', () => {
-        keyManager.onKeydown(DOWN_ARROW_EVENT);
+    it('should focus previous items when up arrow is pressed', () => {
+      keyManager.onKeydown(DOWN_ARROW_EVENT);
 
-        expect(itemList.items[0].focus).not.toHaveBeenCalled();
-        expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
+      expect(itemList.items[0].focus).not.toHaveBeenCalled();
+      expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
 
-        keyManager.onKeydown(UP_ARROW_EVENT);
+      keyManager.onKeydown(UP_ARROW_EVENT);
 
-        expect(itemList.items[0].focus).toHaveBeenCalledTimes(1);
-        expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
-      });
+      expect(itemList.items[0].focus).toHaveBeenCalledTimes(1);
+      expect(itemList.items[1].focus).toHaveBeenCalledTimes(1);
+    });
 
-      it('should allow setting the focused item without calling focus', () => {
-        expect(keyManager.activeItemIndex)
-            .toBe(0, `Expected first item of the list to be active.`);
+    it('should allow setting the focused item without calling focus', () => {
+      expect(keyManager.activeItemIndex)
+          .toBe(0, `Expected first item of the list to be active.`);
 
-        keyManager.updateActiveItemIndex(1);
-        expect(keyManager.activeItemIndex)
-            .toBe(1, `Expected activeItemIndex to update after calling updateActiveItemIndex().`);
-        expect(itemList.items[1].focus).not.toHaveBeenCalledTimes(1);
-      });
+      keyManager.updateActiveItemIndex(1);
+      expect(keyManager.activeItemIndex)
+          .toBe(1, `Expected activeItemIndex to update after calling updateActiveItemIndex().`);
+      expect(itemList.items[1].focus).not.toHaveBeenCalledTimes(1);
+    });
+
+    it('should debounce the input key presses', fakeAsync(() => {
+      keyManager.onKeydown(new FakeEvent(79) as KeyboardEvent); // types "o"
+      keyManager.onKeydown(new FakeEvent(78) as KeyboardEvent); // types "n"
+      keyManager.onKeydown(new FakeEvent(69) as KeyboardEvent); // types "e"
+
+      expect(itemList.items[0].focus).not.toHaveBeenCalled();
+
+      tick(FOCUS_KEY_MANAGER_DEBOUNCE_INTERVAL);
+
+      expect(itemList.items[0].focus).toHaveBeenCalled();
+    }));
+
+    it('should focus the first item that starts with a letter', fakeAsync(() => {
+      keyManager.onKeydown(new FakeEvent(84) as KeyboardEvent); // types "t"
+
+      tick(FOCUS_KEY_MANAGER_DEBOUNCE_INTERVAL);
+
+      expect(itemList.items[1].focus).toHaveBeenCalled();
+    }));
+
+    it('should focus the first item that starts with sequence of letters', fakeAsync(() => {
+      keyManager.onKeydown(new FakeEvent(84) as KeyboardEvent); // types "t"
+      keyManager.onKeydown(new FakeEvent(72) as KeyboardEvent); // types "h"
+
+      tick(FOCUS_KEY_MANAGER_DEBOUNCE_INTERVAL);
+
+      expect(itemList.items[1].focus).not.toHaveBeenCalled();
+      expect(itemList.items[2].focus).toHaveBeenCalled();
+    }));
+
+    it('should cancel any pending timers if a non-input key is pressed', fakeAsync(() => {
+      keyManager.onKeydown(new FakeEvent(84) as KeyboardEvent); // types "t"
+      keyManager.onKeydown(new FakeEvent(72) as KeyboardEvent); // types "h"
+      keyManager.onKeydown(DOWN_ARROW_EVENT);
+
+      tick(FOCUS_KEY_MANAGER_DEBOUNCE_INTERVAL);
+
+      expect(itemList.items[2].focus).not.toHaveBeenCalled();
+      expect(itemList.items[1].focus).toHaveBeenCalled();
+    }));
 
   });
 

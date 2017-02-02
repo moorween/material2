@@ -21,7 +21,7 @@ export class ListKeyManager<T extends CanDisable> {
   private _tabOut: Subject<any> = new Subject();
   private _wrap: boolean = false;
 
-  constructor(private _items: QueryList<T>) {
+  constructor(protected _items: QueryList<T>) {
   }
 
   /**
