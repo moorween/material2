@@ -11,10 +11,12 @@ import {RIGHT_ARROW, LEFT_ARROW, ENTER} from '../core/keyboard/keycodes';
 import {FakeViewportRuler} from '../core/overlay/position/fake-viewport-ruler';
 import {ViewportRuler} from '../core/overlay/position/viewport-ruler';
 import {dispatchKeyboardEvent} from '../core/testing/dispatch-events';
+import {Subject} from 'rxjs/Subject';
 
 
 describe('MdTabHeader', () => {
   let dir: LayoutDirection = 'ltr';
+  let dirChange = new Subject();
   let fixture: ComponentFixture<SimpleTabHeaderApp>;
   let appComponent: SimpleTabHeaderApp;
 
@@ -29,7 +31,9 @@ describe('MdTabHeader', () => {
         SimpleTabHeaderApp,
       ],
       providers: [
-        {provide: Dir, useFactory: () => { return {value: dir}; }},
+        {provide: Dir, useFactory: () => {
+          return {value: dir,  dirChange: dirChange.asObservable()};
+        }},
         {provide: ViewportRuler, useClass: FakeViewportRuler},
       ]
     });
@@ -211,7 +215,7 @@ interface Tab {
            *ngFor="let tab of tabs; let i = index"
            [disabled]="!!tab.disabled"
            (click)="selectedIndex = i">
-         {{tab.label}}  
+         {{tab.label}}
       </div>
     </md-tab-header>
   </div>
