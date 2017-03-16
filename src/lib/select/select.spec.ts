@@ -43,7 +43,8 @@ describe('MdSelect', () => {
         ThrowsErrorOnInit,
         BasicSelectOnPush,
         BasicSelectOnPushPreselected,
-        SelectWithPlainTabindex
+        SelectWithPlainTabindex,
+        BasicSelectInitiallyHidden
       ],
       providers: [
         {provide: OverlayContainer, useFactory: () => {
@@ -150,6 +151,25 @@ describe('MdSelect', () => {
       fixture.whenStable().then(() => {
         trigger.click();
         fixture.detectChanges();
+        const pane = overlayContainerElement.querySelector('.cdk-overlay-pane') as HTMLElement;
+        expect(pane.style.minWidth).toBe('200px');
+      });
+    }));
+
+    it('should set the width of the overlay if the element was hidden initially', async(() => {
+      let initiallyHidden = TestBed.createComponent(BasicSelectInitiallyHidden);
+
+      initiallyHidden.detectChanges();
+      trigger = initiallyHidden.debugElement.query(By.css('.mat-select-trigger')).nativeElement;
+      trigger.style.width = '200px';
+
+      initiallyHidden.componentInstance.isVisible = true;
+      initiallyHidden.detectChanges();
+
+      initiallyHidden.whenStable().then(() => {
+        trigger.click();
+        initiallyHidden.detectChanges();
+
         const pane = overlayContainerElement.querySelector('.cdk-overlay-pane') as HTMLElement;
         expect(pane.style.minWidth).toBe('200px');
       });
@@ -1892,6 +1912,18 @@ class MultiSelect {
   `
 })
 class SelectWithPlainTabindex { }
+
+@Component({
+  selector: 'basic-select-initially-hidden',
+  template: `
+    <md-select [style.display]="isVisible ? 'block' : 'none'">
+      <md-option value="value">There are no other options</md-option>
+    </md-select>
+  `
+})
+class BasicSelectInitiallyHidden {
+  isVisible = false;
+}
 
 
 class FakeViewportRuler {
