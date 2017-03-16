@@ -620,7 +620,7 @@ describe('MdInputContainer', function () {
       component = groupFixture.componentInstance;
       containerEl = groupFixture.debugElement.query(By.css('md-input-container')).nativeElement;
 
-      expect(component.formControl.invalid).toBe(true, 'Expected form control to be invalid');
+      expect(component.formGroup.invalid).toBe(true, 'Expected form control to be invalid');
       expect(containerEl.querySelectorAll('md-error').length).toBe(0, 'Expected no error messages');
       expect(component.formGroupDirective.submitted)
           .toBe(false, 'Expected form not to have been submitted');
@@ -951,9 +951,9 @@ class MdInputContainerWithFormErrorMessages {
 
 @Component({
   template: `
-    <form [formGroup]="formGroup" (ngSubmit)="onSubmit()" novalidate>
+    <form [formGroup]="formGroup" novalidate>
       <md-input-container>
-        <input mdInput [formControl]="formControl">
+        <input mdInput formControlName="name">
         <md-hint>Please type something</md-hint>
         <md-error>This field is required</md-error>
       </md-input-container>
@@ -962,9 +962,9 @@ class MdInputContainerWithFormErrorMessages {
 })
 class MdInputContainerWithFormGroupErrorMessages {
   @ViewChild(FormGroupDirective) formGroupDirective: FormGroupDirective;
-  onSubmit() { }
-  formControl = new FormControl('', Validators.required);
-  formGroup = new FormGroup({ name: this.formControl });
+  formGroup = new FormGroup({
+    name: new FormControl('', Validators.required)
+  });
 }
 
 /**
