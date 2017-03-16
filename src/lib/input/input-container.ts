@@ -289,6 +289,8 @@ export class MdInputContainer implements AfterContentInit {
 
   @ContentChildren(MdHint) _hintChildren: QueryList<MdHint>;
 
+  constructor(public _elementRef: ElementRef) { }
+
   ngAfterContentInit() {
     if (!this._mdInputChild) {
       throw new MdInputContainerMissingMdInputError();

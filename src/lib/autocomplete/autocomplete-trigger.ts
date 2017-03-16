@@ -1,13 +1,14 @@
 import {
-    Directive,
-    ElementRef,
-    forwardRef,
-    Host,
-    Input,
-    NgZone,
-    Optional,
-    OnDestroy,
-    ViewContainerRef,
+  Directive,
+  ElementRef,
+  forwardRef,
+  Host,
+  Input,
+  NgZone,
+  Optional,
+  OnDestroy,
+  ViewContainerRef,
+  Renderer,
 } from '@angular/core';
 import {ControlValueAccessor, NG_VALUE_ACCESSOR} from '@angular/forms';
 import {Overlay, OverlayRef, OverlayState, TemplatePortal} from '../core';
@@ -58,8 +59,8 @@ export const MD_AUTOCOMPLETE_VALUE_ACCESSOR: any = {
     '[attr.aria-expanded]': 'panelOpen.toString()',
     '[attr.aria-owns]': 'autocomplete?.id',
     '(focus)': 'openPanel()',
-    '(blur)': '_handleBlur($event.relatedTarget?.tagName)',
     '(input)': '_handleInput($event)',
+    '(blur)': '_onTouched()',
     '(keydown)': '_handleKeydown($event)',
   },
   providers: [MD_AUTOCOMPLETE_VALUE_ACCESSOR]
@@ -74,11 +75,14 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
 
   private _positionStrategy: ConnectedPositionStrategy;
 
-  /** Stream of blur events that should close the panel. */
-  private _blurStream = new Subject<any>();
+  /** Stream of click events that should close the panel. */
+  private _outsideClickStream = new Subject<any>();
 
   /** Whether or not the placeholder state is being overridden. */
   private _manuallyFloatingPlaceholder = false;
+
+  /** Keeps track of the function that allows us to remove the `document` click listener. */
+  private _unbindGlobalListener: Function;
 
   /** View -> model callback called when value changes */
   _onChange = (value: any) => {};
@@ -100,7 +104,7 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
   }
 
   constructor(private _element: ElementRef, private _overlay: Overlay,
-              private _viewContainerRef: ViewContainerRef,
+              private _renderer: Renderer, private _viewContainerRef: ViewContainerRef,
               @Optional() private _dir: Dir, private _zone: NgZone,
               @Optional() @Host() private _inputContainer: MdInputContainer) {}
 
@@ -133,6 +137,16 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
 
     this._panelOpen = true;
     this._floatPlaceholder();
+
+    if (!this._unbindGlobalListener) {
+      this._unbindGlobalListener = this._renderer.listenGlobal('document', 'click',
+        (event: MouseEvent) => {
+          if (!this._inputContainer._elementRef.nativeElement.contains(event.target) &&
+              !this._overlayRef.overlayElement.contains(event.target as HTMLElement)) {
+            this._outsideClickStream.next(null);
+          }
+        });
+    }
   }
 
   /** Closes the autocomplete suggestion panel. */
@@ -143,6 +157,11 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
 
     this._panelOpen = false;
     this._resetPlaceholder();
+
+    if (this._unbindGlobalListener) {
+      this._unbindGlobalListener();
+      this._unbindGlobalListener = null;
+    }
   }
 
   /**
@@ -151,9 +170,9 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
    */
   get panelClosingActions(): Observable<MdOptionSelectionChange> {
     return Observable.merge(
-        this.optionSelections,
-        this._blurStream.asObservable(),
-        this.autocomplete._keyManager.tabOut
+      this.optionSelections,
+      this.autocomplete._keyManager.tabOut,
+      this._outsideClickStream
     );
   }
 
@@ -220,15 +239,6 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
     if (document.activeElement === event.target) {
       this._onChange((event.target as HTMLInputElement).value);
       this.openPanel();
-    }
-  }
-
-  _handleBlur(newlyFocusedTag: string): void {
-    this._onTouched();
-
-    // Only emit blur event if the new focus is *not* on an option.
-    if (newlyFocusedTag !== 'MD-OPTION') {
-      this._blurStream.next(null);
     }
   }
 
@@ -304,8 +314,8 @@ export class MdAutocompleteTrigger implements ControlValueAccessor, OnDestroy {
    * control to that value. It will also mark the control as dirty if this interaction
    * stemmed from the user.
    */
-  private _setValueAndClose(event: MdOptionSelectionChange | null): void {
-    if (event) {
+  private _setValueAndClose(event: MdOptionSelectEvent | null): void {
+    if (event && event.source) {
       this._setTriggerValue(event.source.value);
       this._onChange(event.source.value);
     }
