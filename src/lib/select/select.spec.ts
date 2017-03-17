@@ -21,6 +21,8 @@ import {
 } from '@angular/forms';
 import {ViewportRuler} from '../core/overlay/position/viewport-ruler';
 import {dispatchFakeEvent} from '../core/testing/dispatch-events';
+import {wrappedErrorMessage} from '../core/testing/wrapped-error-message';
+
 
 describe('MdSelect', () => {
   let overlayContainerElement: HTMLElement;
@@ -1567,13 +1569,13 @@ describe('MdSelect', () => {
     it('should throw an exception when trying to set a non-array value', () => {
       expect(() => {
         testInstance.control.setValue('not-an-array');
-      }).toThrowError(MdSelectNonArrayValueError);
+      }).toThrowError(wrappedErrorMessage(new MdSelectNonArrayValueError()));
     });
 
     it('should throw an exception when trying to change multiple mode after init', () => {
       expect(() => {
         testInstance.select.multiple = false;
-      }).toThrowError(MdSelectDynamicMultipleError);
+      }).toThrowError(wrappedErrorMessage(new MdSelectDynamicMultipleError()));
     });
 
     it('should pass the `multiple` value to all of the option instances', async(() => {
